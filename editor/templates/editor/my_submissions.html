@@ -1,0 +1,67 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}我的提交 - {{ SITE.name }}{% endblock %}
+
+{% block content %}
+<div class="container page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">我的提交</h1>
+      <p class="page-sub">点击状态可以按结果筛选。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="filters">
+      <div class="pill-group" style="flex-wrap:wrap">
+        <a class="pill{% if not status %} is-active{% endif %}" href="{% query_with status=None page=None %}">全部</a>
+        {% for value, label in status_choices %}
+        <a class="pill{% if status == value %} is-active{% endif %}" href="{% query_with status=value page=None %}">{{ label }}</a>
+        {% endfor %}
+      </div>
+      {% if problem_slug %}<a class="btn btn-ghost btn-sm" href="{% url 'my_submissions' %}">只看题目 {{ problem_slug }} · 清除</a>{% endif %}
+    </div>
+
+    {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-tight">编号</th>
+            <th>题目</th>
+            <th class="col-tight">结果</th>
+            <th class="col-tight hide-sm">语言</th>
+            <th class="col-tight hide-sm">得分</th>
+            <th class="col-tight hide-sm">时间</th>
+            <th class="col-tight hide-sm">内存</th>
+            <th class="col-tight">提交于</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for submission in page_obj.object_list %}
+          <tr>
+            <td class="col-tight num">#{{ submission.id }}</td>
+            <td><a class="problem-link" href="{% url 'problem_detail' submission.problem.slug %}">{{ submission.problem.title }}</a></td>
+            <td class="col-tight">{% verdict_badge submission %}</td>
+            <td class="col-tight hide-sm">{{ submission.get_language_display }}</td>
+            <td class="col-tight num hide-sm">{{ submission.score }}/{{ submission.total_score }}</td>
+            <td class="col-tight num hide-sm">{% if submission.execution_time is not None %}{{ submission.execution_time }} ms{% else %}—{% endif %}</td>
+            <td class="col-tight num hide-sm">{% if submission.memory_used %}{{ submission.memory_used|kb_to_mb }} MB{% else %}—{% endif %}</td>
+            <td class="col-tight num">{{ submission.submitted_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include 'editor/_pagination.html' %}
+    {% else %}
+    <div class="empty">
+      {% icon 'list' %}
+      <p>{% if status or problem_slug %}没有符合条件的提交。{% else %}还没有提交记录。{% endif %}</p>
+      <a class="btn btn-primary" href="{% url 'problem_list' %}">{% icon 'book' %}<span>去题库看看</span></a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+# Only needed when membership purchases through Alipay are enabled
+# (ALIPAY_* variables in .env). The rest of the site runs without these.
+alipay-sdk-python>=3.3.398
+requests>=2.27
+cryptography>=40

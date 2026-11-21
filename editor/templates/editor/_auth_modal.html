@@ -1,0 +1,46 @@
+{% load ct %}{# Sign in / sign up dialog, opened with CodeTool.auth.open('login' | 'signup'). #}
+<div class="modal" id="auth-modal" hidden>
+  <div class="modal-card modal-narrow" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+    <button type="button" class="icon-btn modal-close" data-close aria-label="关闭">{% icon 'x' %}</button>
+    <h2 id="auth-title" class="modal-title">欢迎使用 {{ SITE.name }}</h2>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab is-active" data-auth-tab="login" role="tab">登录</button>
+      <button type="button" class="tab" data-auth-tab="signup" role="tab">注册</button>
+    </div>
+    <form class="form" data-auth-form="login" novalidate>
+      <label class="field">
+        <span class="field-label">用户名</span>
+        <input class="input" type="text" name="username" autocomplete="username" required>
+      </label>
+      <label class="field">
+        <span class="field-label">密码</span>
+        <input class="input" type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <p class="form-error" data-error hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">登录</button>
+    </form>
+    <form class="form" data-auth-form="signup" novalidate hidden>
+      <label class="field">
+        <span class="field-label">用户名</span>
+        <input class="input" type="text" name="username" autocomplete="username" required maxlength="150">
+        <span class="field-hint">字母、数字和 @ . + - _</span>
+      </label>
+      <label class="field">
+        <span class="field-label">邮箱<span class="field-optional">（选填）</span></span>
+        <input class="input" type="email" name="email" autocomplete="email">
+      </label>
+      <label class="field">
+        <span class="field-label">密码</span>
+        <input class="input" type="password" name="password1" autocomplete="new-password" required>
+        <span class="field-hint">至少 8 位，不能是纯数字</span>
+      </label>
+      <label class="field">
+        <span class="field-label">确认密码</span>
+        <input class="input" type="password" name="password2" autocomplete="new-password" required>
+      </label>
+      <p class="form-error" data-error hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">注册并登录</button>
+      <p class="form-note">不注册也能使用面试房间；注册后可以提交题库题目、保存自己的题目。</p>
+    </form>
+  </div>
+</div>

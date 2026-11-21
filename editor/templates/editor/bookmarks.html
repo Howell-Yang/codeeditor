@@ -1,0 +1,71 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}我的收藏 - {{ SITE.name }}{% endblock %}
+
+{% block content %}
+<div class="container page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">我的收藏</h1>
+      <p class="page-sub">在题目页点书签图标即可收藏。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    {% if bookmarks %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-tight">状态</th>
+            <th>题目</th>
+            <th class="col-tight">难度</th>
+            <th class="col-tight hide-sm">分类</th>
+            <th class="col-tight hide-sm">收藏于</th>
+            <th class="col-tight"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bookmark in bookmarks %}
+          <tr data-bookmark-row>
+            <td class="col-tight">
+              {% if bookmark.user_status == 'solved' %}<span class="state-dot state-solved" title="已通过">{% icon 'check' %}</span>
+              {% elif bookmark.user_status == 'attempted' %}<span class="state-dot state-attempted" title="尝试过">{% icon 'minus' %}</span>
+              {% else %}<span class="state-dot state-none" title="还没做"></span>{% endif %}
+            </td>
+            <td><a class="problem-link" href="{% url 'problem_detail' bookmark.problem.slug %}">{{ bookmark.problem.title }}</a></td>
+            <td class="col-tight">{% difficulty_badge bookmark.problem.difficulty %}</td>
+            <td class="col-tight hide-sm" style="color:var(--muted)">{% if bookmark.problem.category %}{{ bookmark.problem.category.name }}{% endif %}</td>
+            <td class="col-tight num hide-sm">{{ bookmark.created_at|date:"Y-m-d" }}</td>
+            <td class="col-tight"><button type="button" class="icon-btn icon-btn-sm" data-unbookmark="{{ bookmark.problem.slug }}" title="取消收藏" aria-label="取消收藏">{% icon 'x' %}</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      {% icon 'bookmark' %}
+      <p>还没有收藏任何题目。</p>
+      <a class="btn btn-primary" href="{% url 'problem_list' %}">{% icon 'book' %}<span>浏览题库</span></a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-unbookmark]');
+    if (!button) { return; }
+    CodeTool.api('/problem/' + button.getAttribute('data-unbookmark') + '/bookmark/', { body: {} }).then(function (data) {
+      if (!data.success) { CodeTool.toast(data.error || '操作失败', 'error'); return; }
+      var row = button.closest('[data-bookmark-row]');
+      row.parentNode.removeChild(row);
+      CodeTool.toast('已取消收藏', 'ok');
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% load ct %}{# Shared <head> content (the title and description come from the page). #}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="keywords" content="在线代码面试, 在线编程面试, 协同编辑, 在线代码编辑, 在线编程IDE, 在线运行代码, 算法题库, 代码评测">
+{% if SITE.baidu_verification %}<meta name="baidu-site-verification" content="{{ SITE.baidu_verification }}">{% endif %}
+<meta name="theme-color" content="#1f6feb">
+<link rel="icon" type="image/svg+xml" href="{% asset 'img/favicon.svg' %}">
+<script>
+  /* Apply the stored theme before the first paint. */
+  (function () {
+    var theme = (/[?&]theme=(light|dark)\b/.exec(location.search) || [])[1] || null;   // ?theme=dark
+    try { theme = theme || localStorage.getItem('ct:theme'); } catch (e) {}
+    if (theme !== 'light' && theme !== 'dark') {
+      theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="stylesheet" href="{% asset 'css/app.css' %}">

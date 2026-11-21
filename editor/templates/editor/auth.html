@@ -1,0 +1,57 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}{% if mode == 'signup' %}注册{% else %}登录{% endif %} - {{ SITE.name }}{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <h1>{% if mode == 'signup' %}注册{% else %}登录{% endif %} {{ SITE.name }}</h1>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab{% if mode != 'signup' %} is-active{% endif %}" data-auth-tab="login" role="tab">登录</button>
+      <button type="button" class="tab{% if mode == 'signup' %} is-active{% endif %}" data-auth-tab="signup" role="tab">注册</button>
+    </div>
+    <form class="form" data-auth-form="login" data-next="{{ next }}" novalidate {% if mode == 'signup' %}hidden{% endif %}>
+      <label class="field">
+        <span class="field-label">用户名</span>
+        <input class="input" type="text" name="username" autocomplete="username" required {% if mode != 'signup' %}autofocus{% endif %}>
+      </label>
+      <label class="field">
+        <span class="field-label">密码</span>
+        <input class="input" type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <p class="form-error" data-error hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">登录</button>
+    </form>
+    <form class="form" data-auth-form="signup" data-next="{{ next }}" novalidate {% if mode != 'signup' %}hidden{% endif %}>
+      <label class="field">
+        <span class="field-label">用户名</span>
+        <input class="input" type="text" name="username" autocomplete="username" required maxlength="150">
+        <span class="field-hint">字母、数字和 @ . + - _</span>
+      </label>
+      <label class="field">
+        <span class="field-label">邮箱<span class="field-optional">（选填）</span></span>
+        <input class="input" type="email" name="email" autocomplete="email">
+      </label>
+      <label class="field">
+        <span class="field-label">密码</span>
+        <input class="input" type="password" name="password1" autocomplete="new-password" required>
+        <span class="field-hint">至少 8 位，不能是纯数字</span>
+      </label>
+      <label class="field">
+        <span class="field-label">确认密码</span>
+        <input class="input" type="password" name="password2" autocomplete="new-password" required>
+      </label>
+      <p class="form-error" data-error hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">注册并登录</button>
+    </form>
+    <p class="form-note" style="margin-top:14px;text-align:center">不注册也能使用面试房间和运行代码。</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  CodeTool.auth.onSuccess = function (data) { location.href = data.next || '/'; };
+</script>
+{% endblock %}

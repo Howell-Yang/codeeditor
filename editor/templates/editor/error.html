@@ -1,0 +1,14 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}{{ error_title }} - {{ SITE.name }}{% endblock %}
+
+{% block content %}
+<div class="error-page">
+  <div class="error-code">{{ error_code }}</div>
+  <h1>{{ error_title }}</h1>
+  <p>{{ error_text }}</p>
+  <a class="btn btn-primary" href="{% url 'home' %}">回到首页</a>
+  <a class="btn btn-outline" href="{% url 'new_room' %}">创建面试房间</a>
+</div>
+{% endblock %}

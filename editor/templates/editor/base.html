@@ -1,0 +1,57 @@
+{% load ct %}<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}{{ SITE.name }} · {{ SITE.tagline }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ SITE.name }}：免费的在线代码面试工具。一个链接邀请候选人，多人实时协同编辑，在线运行 Python / C / C++，自带算法题库和判题。{% endblock %}">
+  {% block vendor_css %}{% endblock %}
+  {% include 'editor/_head.html' %}
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}site-page{% endblock %}">
+  {% include 'editor/_icons.html' %}
+  <header class="site-header">
+    <div class="container site-header-inner">
+      <a class="brand" href="{% url 'home' %}">
+        <span class="brand-mark">{% icon 'logo' %}</span>
+        <span class="brand-name">{{ SITE.name }}</span>
+      </a>
+      <button type="button" class="icon-btn nav-toggle" data-nav-toggle aria-label="菜单">{% icon 'menu' %}</button>
+      <nav class="site-nav" data-nav>
+        {% with name=request.resolver_match.url_name %}
+        <a href="{% url 'home' %}" class="{% if name == 'home' %}is-active{% endif %}">首页</a>
+        <a href="{% url 'problem_list' %}" class="{% if name == 'problem_list' or name == 'problem_detail' %}is-active{% endif %}">题库</a>
+        {% if user.is_authenticated %}
+        <a href="{% url 'my_submissions' %}" class="{% if name == 'my_submissions' %}is-active{% endif %}">我的提交</a>
+        <a href="{% url 'my_bookmarks' %}" class="{% if name == 'my_bookmarks' %}is-active{% endif %}">收藏</a>
+        {% endif %}
+        <a href="{% url 'membership' %}" class="{% if name == 'membership' %}is-active{% endif %}">会员</a>
+        {% endwith %}
+      </nav>
+      <div class="site-actions">
+        <button type="button" class="icon-btn" data-theme-toggle title="切换深色 / 浅色" aria-label="切换主题">
+          <span class="only-light">{% icon 'moon' %}</span><span class="only-dark">{% icon 'sun' %}</span>
+        </button>
+        {% if user.is_authenticated %}
+          <a class="btn btn-ghost user-chip" href="{% url 'user_profile' %}">{% icon 'user' %}<span>{{ user.get_username }}</span></a>
+          <button type="button" class="icon-btn" data-logout title="退出登录" aria-label="退出登录">{% icon 'logout' %}</button>
+        {% else %}
+          <button type="button" class="btn btn-ghost" data-auth-open="login">登录</button>
+        {% endif %}
+        <a class="btn btn-primary" href="{% url 'new_room' %}">{% icon 'plus' %}<span>创建房间</span></a>
+      </div>
+    </div>
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include 'editor/_footer.html' %}
+  {% include 'editor/_auth_modal.html' %}
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="{% asset 'js/common.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

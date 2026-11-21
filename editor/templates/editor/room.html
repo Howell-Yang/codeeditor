@@ -1,0 +1,207 @@
+{% load ct %}<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>面试房间 {{ room_name }} - {{ SITE.name }}</title>
+  <meta name="description" content="{{ SITE.name }} 面试房间：多人实时协同写代码、在线运行。">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="{% asset 'vendor/codemirror/codemirror.css' %}">
+  {% include 'editor/_head.html' %}
+</head>
+<body class="room-page">
+  {% include 'editor/_icons.html' %}
+
+  <header class="room-bar">
+    <a class="brand" href="{% url 'home' %}" title="{{ SITE.name }} 首页" target="_blank" rel="noopener">
+      <span class="brand-mark">{% icon 'logo' %}</span>
+      <span class="brand-name">{{ SITE.name }}</span>
+    </a>
+    <div class="room-id">
+      <span class="room-id-label">房间</span>
+      <code>{{ room_name }}</code>
+      <button type="button" class="btn btn-soft btn-sm" id="invite-button" title="复制房间链接，发给对方即可加入">
+        {% icon 'link' %}<span>复制邀请链接</span>
+      </button>
+    </div>
+
+    <div class="timer" id="timer" title="共享计时器：所有人看到的时间一致">
+      {% icon 'clock' %}
+      <span class="timer-value" id="timer-value">00:00</span>
+      <button type="button" class="icon-btn icon-btn-sm" id="timer-toggle" aria-label="开始或暂停计时">
+        <span data-when="stopped">{% icon 'play' %}</span><span data-when="running">{% icon 'pause' %}</span>
+      </button>
+      <button type="button" class="icon-btn icon-btn-sm" id="timer-reset" aria-label="计时清零" title="清零">{% icon 'reset' %}</button>
+    </div>
+
+    <div class="room-bar-spacer"></div>
+
+    <div class="peers" id="peers" aria-label="在线成员"></div>
+
+    <button type="button" class="icon-btn" id="pin-button" title="会员功能：长期保存这个房间" hidden>{% icon 'pin' %}</button>
+    <button type="button" class="icon-btn" data-theme-toggle title="切换深色 / 浅色" aria-label="切换主题">
+      <span class="only-light">{% icon 'moon' %}</span><span class="only-dark">{% icon 'sun' %}</span>
+    </button>
+    {% if user.is_authenticated %}
+      <a class="btn btn-ghost btn-sm user-chip" href="{% url 'user_profile' %}" target="_blank" rel="noopener">{% icon 'user' %}<span>{{ user.get_username }}</span></a>
+    {% else %}
+      <button type="button" class="btn btn-ghost btn-sm" data-auth-open="login">登录</button>
+    {% endif %}
+  </header>
+
+  <nav class="room-tabs" id="room-tabs" aria-label="面板">
+    <button type="button" data-tab="problem">题目</button>
+    <button type="button" data-tab="code" class="is-active">代码</button>
+    <button type="button" data-tab="io">运行</button>
+  </nav>
+
+  <main class="room-main" id="room-main" data-tab="code">
+    <section class="pane problem-pane" id="problem-pane">
+      <div class="pane-head">
+        <span class="pane-title">{% icon 'file' %}题目</span>
+        <div class="segmented" id="problem-mode" role="tablist">
+          <button type="button" data-mode="preview" class="is-active">预览</button>
+          <button type="button" data-mode="edit">编辑</button>
+        </div>
+        <div class="pane-head-spacer"></div>
+        <button type="button" class="btn btn-soft btn-sm" id="pick-problem">{% icon 'book' %}<span>题库</span></button>
+        <button type="button" class="btn btn-soft btn-sm" id="my-problems">{% icon 'folder' %}<span>我的题目</span></button>
+      </div>
+      <div class="pane-body">
+        <div class="md problem-preview" id="problem-preview"></div>
+        <div class="problem-empty" id="problem-empty">
+          <p><strong>这里还没有题目。</strong></p>
+          <p>面试官可以点「编辑」粘贴题目（支持 Markdown），或者从「题库」里选一道。</p>
+          <div class="problem-empty-actions">
+            <button type="button" class="btn btn-outline btn-sm" data-problem-action="edit">{% icon 'edit' %}<span>写题目</span></button>
+            <button type="button" class="btn btn-outline btn-sm" data-problem-action="pick">{% icon 'book' %}<span>从题库选</span></button>
+          </div>
+        </div>
+        <textarea class="problem-editor" id="problem-editor" spellcheck="false" hidden
+                  placeholder="在这里输入题目描述，支持 Markdown：&#10;&#10;# 标题&#10;题目描述……&#10;&#10;```&#10;示例输入&#10;```"></textarea>
+      </div>
+    </section>
+
+    <div class="splitter splitter-v" id="split-main" role="separator" aria-orientation="vertical" tabindex="0"></div>
+
+    <section class="work" id="work">
+      <div class="pane editor-pane">
+        <div class="pane-head">
+          <span class="pane-title">{% icon 'code' %}代码</span>
+          <select class="select select-sm" id="language-select" aria-label="编程语言">
+            {% for language in room_config.languages %}<option value="{{ language.key }}">{{ language.label }}</option>{% endfor %}
+          </select>
+          <button type="button" class="btn btn-soft btn-sm" id="template-button" title="用所选语言的示例代码替换当前内容">模板</button>
+          <div class="font-size" title="字号">
+            <button type="button" class="icon-btn icon-btn-sm" id="font-smaller" aria-label="减小字号">{% icon 'minus' %}</button>
+            <span id="font-size-value">14</span>
+            <button type="button" class="icon-btn icon-btn-sm" id="font-larger" aria-label="增大字号">{% icon 'plus' %}</button>
+          </div>
+          <button type="button" class="icon-btn icon-btn-sm" id="download-button" title="下载代码" aria-label="下载代码">{% icon 'download' %}</button>
+          <div class="pane-head-spacer"></div>
+          <button type="button" class="btn btn-run" id="run-button" title="运行 (Ctrl / ⌘ + Enter)">
+            {% icon 'play' %}<span>运行</span><kbd>Ctrl ↵</kbd>
+          </button>
+        </div>
+        <div class="pane-body editor-host" id="editor-host">
+          <div class="editor-loading" id="editor-loading">正在连接房间…</div>
+        </div>
+      </div>
+
+      <div class="splitter splitter-h" id="split-work" role="separator" aria-orientation="horizontal" tabindex="0"></div>
+
+      <div class="io-pane" id="io-pane">
+        <div class="pane io-input">
+          <div class="pane-head">
+            <span class="pane-title">{% icon 'terminal' %}输入</span>
+            <span class="pane-hint">程序从标准输入读到的内容</span>
+          </div>
+          <textarea class="io-text" id="stdin-editor" spellcheck="false" placeholder="（可留空）"></textarea>
+        </div>
+        <div class="pane io-output">
+          <div class="pane-head">
+            <span class="pane-title">{% icon 'list' %}输出</span>
+            <span class="run-status" id="run-status"></span>
+            <div class="pane-head-spacer"></div>
+            <span class="run-meta" id="run-meta"></span>
+          </div>
+          <div class="io-result" id="run-output">
+            <p class="io-placeholder">点「运行」后，这里显示程序的输出。房间里的所有人都会看到同一份结果。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="room-status">
+    <span class="conn" id="conn-status" data-state="connecting"><i></i><span>正在连接…</span></span>
+    <span class="status-item" id="sync-status"></span>
+    <span class="status-item" id="cursor-status"></span>
+    <span class="room-status-spacer"></span>
+    <a class="status-item" href="{% url 'problem_list' %}" target="_blank" rel="noopener">题库</a>
+    {% if SITE.repo_url %}<a class="status-item" href="{{ SITE.repo_url }}" target="_blank" rel="noopener">源码</a>{% endif %}
+    <span class="status-item status-legal">{{ SITE.copyright }}</span>
+    {% if SITE.icp_number %}<a class="status-item status-legal" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">{{ SITE.icp_number }}</a>{% endif %}
+    {% if SITE.police_number %}<a class="status-item status-legal" href="https://beian.mps.gov.cn/#/query/webSearch{% if SITE.police_code %}?code={{ SITE.police_code }}{% endif %}" target="_blank" rel="noopener noreferrer"><img src="{% asset 'img/beian.png' %}" alt="" width="12" height="12">{{ SITE.police_number }}</a>{% endif %}
+  </footer>
+
+  {# Pick a problem from the public bank #}
+  <div class="modal" id="picker-modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="picker-title">
+      <button type="button" class="icon-btn modal-close" data-close aria-label="关闭">{% icon 'x' %}</button>
+      <h2 id="picker-title" class="modal-title">从题库选题</h2>
+      <div class="picker-filters">
+        <div class="input-icon">{% icon 'search' %}<input class="input" type="search" id="picker-search" placeholder="搜索题目或标签"></div>
+        <select class="select" id="picker-difficulty" aria-label="难度">
+          <option value="">全部难度</option><option value="easy">简单</option><option value="medium">中等</option><option value="hard">困难</option>
+        </select>
+      </div>
+      <div class="picker-list" id="picker-list"></div>
+      <label class="check"><input type="checkbox" id="picker-fill" checked><span>同时填入示例输入和代码模板（不会覆盖已写的代码）</span></label>
+    </div>
+  </div>
+
+  {# The interviewer's own saved problems #}
+  <div class="modal" id="custom-modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-title">
+      <button type="button" class="icon-btn modal-close" data-close aria-label="关闭">{% icon 'x' %}</button>
+      <h2 id="custom-title" class="modal-title">我的题目</h2>
+      <div id="custom-body">
+        <form class="custom-save" id="custom-save-form">
+          <input class="input" name="name" maxlength="100" placeholder="给当前题目起个名字，例如「LRU 缓存 - 校招」" required>
+          <button type="submit" class="btn btn-primary">{% icon 'save' %}<span>保存当前题目和代码</span></button>
+        </form>
+        <p class="form-note">会保存左侧的题目、当前代码、语言和输入，下次面试可以一键载入。</p>
+        <div class="picker-list" id="custom-list"></div>
+      </div>
+      <div class="login-wall" id="custom-login" hidden>
+        <p>登录后可以把常用的题目保存下来，下次面试直接调用。</p>
+        <button type="button" class="btn btn-primary" data-auth-open="login">登录 / 注册</button>
+      </div>
+    </div>
+  </div>
+
+  {# Change the name shown to the others #}
+  <div class="modal" id="name-modal" hidden>
+    <div class="modal-card modal-narrow" role="dialog" aria-modal="true" aria-labelledby="name-title">
+      <button type="button" class="icon-btn modal-close" data-close aria-label="关闭">{% icon 'x' %}</button>
+      <h2 id="name-title" class="modal-title">你在房间里的名字</h2>
+      <form class="form" id="name-form">
+        <input class="input" name="name" maxlength="20" placeholder="例如：面试官 / 张三" autocomplete="off" required>
+        <button type="submit" class="btn btn-primary btn-block">保存</button>
+      </form>
+    </div>
+  </div>
+
+  {% include 'editor/_auth_modal.html' %}
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  {{ room_config|json_script:"room-config" }}
+  <script src="{% asset 'vendor/codemirror/codemirror.bundle.js' %}"></script>
+  <script src="{% asset 'js/common.js' %}"></script>
+  <script src="{% asset 'js/md.js' %}"></script>
+  <script src="{% asset 'js/ot.js' %}"></script>
+  <script src="{% asset 'js/sync.js' %}"></script>
+  <script src="{% asset 'js/room.js' %}"></script>
+  {% if SITE.baidu_union_script %}<script src="//cpro.baidustatic.com/cpro/ui/cm.js" async defer></script>{% endif %}
+</body>
+</html>

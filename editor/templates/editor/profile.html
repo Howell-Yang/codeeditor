@@ -1,0 +1,92 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}个人资料 - {{ SITE.name }}{% endblock %}
+
+{% block content %}
+<div class="container page">
+  <div class="profile-grid">
+    <aside>
+      <div class="card card-pad">
+        <div class="avatar-lg">{{ user.get_username|slice:":1"|upper }}</div>
+        <div class="profile-name">{{ user.first_name|default:user.get_username }}</div>
+        <div class="profile-mail">{{ user.email|default:"未填写邮箱" }}</div>
+        <dl class="kv">
+          <div><dt>已通过题目</dt><dd>{{ solved_problems }}</dd></div>
+          <div><dt>通过的提交</dt><dd>{{ accepted_submissions }}</dd></div>
+          <div><dt>全部提交</dt><dd>{{ total_submissions }}</dd></div>
+          <div><dt>会员</dt><dd>{% if membership %}{{ membership.get_status }}{% else %}未开通{% endif %}</dd></div>
+        </dl>
+        <a class="btn btn-outline btn-block" style="margin-top:16px" href="{% url 'membership' %}">{% icon 'crown' %}<span>会员与房间额度</span></a>
+      </div>
+    </aside>
+
+    <div>
+      <div class="card">
+        <div class="card-head">编辑资料</div>
+        <form class="card-pad form" id="profile-form">
+          {% csrf_token %}
+          <div class="form-grid">
+            <label class="field"><span class="field-label">用户名</span>{{ form.username }}</label>
+            <label class="field"><span class="field-label">邮箱</span>{{ form.email }}</label>
+            <label class="field"><span class="field-label">昵称</span>{{ form.first_name }}<span class="field-hint">{{ form.first_name.help_text }}</span></label>
+          </div>
+          <p class="form-error" id="profile-error" hidden></p>
+          <div><button type="submit" class="btn btn-primary">{% icon 'save' %}<span>保存修改</span></button></div>
+        </form>
+      </div>
+
+      {% if pinned_rooms %}
+      <div class="card">
+        <div class="card-head">我长期保存的房间</div>
+        <div class="card-pad history">
+          {% for room in pinned_rooms %}
+          <div class="history-row"><a class="problem-link" href="{% url 'room' room.room_name %}">{{ room.room_name }}</a><span class="num">最近更新 {{ room.updated_at|date:"Y-m-d H:i" }}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="card-head"><span>最近提交</span><a class="link-more" href="{% url 'my_submissions' %}">全部 {% icon 'chevron-right' %}</a></div>
+        {% if recent_submissions %}
+        <div class="card-pad history">
+          {% for submission in recent_submissions %}
+          <div class="history-row">
+            {% verdict_badge submission %}
+            <a class="problem-link" href="{% url 'problem_detail' submission.problem.slug %}">{{ submission.problem.title }}</a>
+            <span class="num">{{ submission.get_language_display }} · {{ submission.submitted_at|date:"m-d H:i" }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty">{% icon 'list' %}<p>还没有提交记录。</p><a class="btn btn-primary" href="{% url 'problem_list' %}">去题库看看</a></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('profile-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var form = this;
+    var error = document.getElementById('profile-error');
+    error.hidden = true;
+    fetch(location.pathname, {
+      method: 'POST', credentials: 'same-origin', body: new FormData(form),
+      headers: { 'X-CSRFToken': CodeTool.cookie('csrftoken') || '', 'Accept': 'application/json' }
+    }).then(function (response) { return response.json(); }).then(function (data) {
+      if (data.success) {
+        CodeTool.toast(data.message || '已保存', 'ok');
+        setTimeout(function () { location.reload(); }, 600);
+      } else {
+        error.textContent = Object.keys(data.errors || {}).map(function (key) { return data.errors[key].join(' '); }).join('\n') || data.error || '保存失败';
+        error.hidden = false;
+      }
+    }).catch(function () { CodeTool.toast('网络连接失败', 'error'); });
+  });
+</script>
+{% endblock %}

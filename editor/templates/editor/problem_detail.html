@@ -1,0 +1,125 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}{{ problem.title }} - 题库 - {{ SITE.name }}{% endblock %}
+{% block description %}{{ problem.title }}：{{ problem.description|truncatechars:120 }}{% endblock %}
+{% block body_class %}site-page solve-page{% endblock %}
+
+{% block vendor_css %}<link rel="stylesheet" href="{% asset 'vendor/codemirror/codemirror.css' %}">{% endblock %}
+
+{% block content %}
+<div class="solve">
+  <section class="card solve-left">
+    <div class="solve-scroll">
+      <div class="problem-title-row">
+        <h1>{{ problem.title }}</h1>
+        <button type="button" class="icon-btn{% if is_bookmarked %} is-on{% endif %}" id="bookmark-button"
+                title="{% if is_bookmarked %}取消收藏{% else %}收藏{% endif %}" aria-label="收藏">{% icon 'bookmark' %}</button>
+      </div>
+      <div class="problem-meta">
+        {% difficulty_badge problem.difficulty %}
+        {% if user_status == 'solved' %}<span class="chip chip-ok">{% icon 'check' %}已通过</span>
+        {% elif user_status == 'attempted' %}<span class="chip chip-warn">尝试过</span>{% endif %}
+        {% if problem.category %}<span>{% icon 'folder' %}{{ problem.category.name }}</span>{% endif %}
+        <span title="以 C/C++ 为基准；Python ×3，JavaScript ×2">{% icon 'clock' %}{{ problem.time_limit }} ms</span>
+        <span>内存 {{ problem.memory_limit }} MB</span>
+        {% if problem.submission_count %}<span>通过率 {{ problem.acceptance_rate|floatformat:0 }}%（{{ problem.accepted_count }}/{{ problem.submission_count }}）</span>{% endif %}
+        {% for tag in problem.tag_list %}<a class="tag" href="{% url 'problem_list' %}?tag={{ tag|urlencode }}">{{ tag }}</a>{% endfor %}
+      </div>
+
+      <div class="md" data-markdown>{{ problem.description }}</div>
+
+      {% if problem.input_format %}
+      <h2 class="problem-section-title">输入格式</h2>
+      <div class="md" data-markdown>{{ problem.input_format }}</div>
+      {% endif %}
+      {% if problem.output_format %}
+      <h2 class="problem-section-title">输出格式</h2>
+      <div class="md" data-markdown>{{ problem.output_format }}</div>
+      {% endif %}
+      {% if problem.constraints %}
+      <h2 class="problem-section-title">数据范围</h2>
+      <div class="md" data-markdown>{{ problem.constraints }}</div>
+      {% endif %}
+
+      {% if samples %}
+      <h2 class="problem-section-title">示例</h2>
+      {% for case in samples %}
+      <div class="sample">
+        <div class="sample-head">
+          <span>示例 {{ forloop.counter }}</span>
+          <button type="button" class="btn btn-soft btn-sm" data-use-sample="{{ forloop.counter0 }}">填入自测输入</button>
+        </div>
+        <div class="sample-grid">
+          <div><div class="sample-label">输入</div><pre>{{ case.input_data }}</pre></div>
+          <div><div class="sample-label">输出</div><pre>{{ case.expected_output }}</pre></div>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {% if problem.hint %}
+      <details>
+        <summary class="problem-section-title" style="cursor:pointer">提示（想一会儿再看）</summary>
+        <div class="md" data-markdown>{{ problem.hint }}</div>
+      </details>
+      {% endif %}
+
+      <h2 class="problem-section-title">我的提交</h2>
+      <div class="history" id="history">
+        {% for submission in user_submissions %}
+        <div class="history-row">{% verdict_badge submission %}<span>{{ submission.get_language_display }}</span><span class="num">{% if submission.execution_time is not None %}{{ submission.execution_time }} ms · {% endif %}{{ submission.submitted_at|date:"m-d H:i" }}</span></div>
+        {% empty %}
+        <p class="form-note" id="history-empty">{% if user.is_authenticated %}还没有提交过。{% else %}登录后可以提交并保存记录；不登录也可以运行代码。{% endif %}</p>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="solve-nav">
+      {% if previous_problem %}<a href="{% url 'problem_detail' previous_problem.slug %}">{% icon 'chevron-left' %}{{ previous_problem.title }}</a>{% else %}<span></span>{% endif %}
+      <a href="{% url 'new_room' %}?problem={{ problem.slug }}" title="创建一个面试房间，并把这道题放进去">{% icon 'users' %} 用这道题面试</a>
+      {% if next_problem %}<a href="{% url 'problem_detail' next_problem.slug %}">{{ next_problem.title }}{% icon 'chevron-right' %}</a>{% else %}<span></span>{% endif %}
+    </div>
+  </section>
+
+  <section class="solve-right">
+    <div class="pane solve-editor">
+      <div class="pane-head">
+        <span class="pane-title">{% icon 'code' %}代码</span>
+        <select class="select select-sm" id="language-select" aria-label="编程语言">
+          {% for language in languages %}<option value="{{ language.key }}">{{ language.label }}</option>{% endfor %}
+        </select>
+        <button type="button" class="btn btn-soft btn-sm" id="reset-button" title="恢复这道题的初始代码">重置</button>
+        <div class="pane-head-spacer"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="run-button" title="用下方的自测输入运行 (Ctrl / ⌘ + Enter)">{% icon 'play' %}<span>运行</span></button>
+        <button type="button" class="btn btn-run" id="submit-button" title="提交判题">{% icon 'send' %}<span>提交</span></button>
+      </div>
+      <div class="pane-body editor-host" id="editor-host"></div>
+    </div>
+
+    <div class="pane solve-console">
+      <div class="pane-head">
+        <div class="console-tabs" id="console-tabs">
+          <button type="button" data-console="input" class="is-active">自测输入</button>
+          <button type="button" data-console="output">运行结果</button>
+          <button type="button" data-console="verdict">判题结果</button>
+        </div>
+        <div class="pane-head-spacer"></div>
+        <span class="run-meta" id="console-meta"></span>
+      </div>
+      <div class="console-body">
+        <textarea class="io-text" id="custom-input" spellcheck="false" placeholder="运行时作为标准输入；默认是示例 1 的输入"></textarea>
+        <div class="console-pad" id="console-output" hidden><p class="io-placeholder">点「运行」后在这里看输出。</p></div>
+        <div class="console-pad" id="console-verdict" hidden><p class="io-placeholder">点「提交」后，这里显示每个测试用例的结果。</p></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+{{ problem_config|json_script:"problem-config" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% asset 'vendor/codemirror/codemirror.bundle.js' %}"></script>
+<script src="{% asset 'js/md.js' %}"></script>
+<script src="{% asset 'js/problem.js' %}"></script>
+{% endblock %}

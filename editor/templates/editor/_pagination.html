@@ -1,0 +1,16 @@
+{% load ct %}{% if page_obj.has_other_pages %}
+<nav class="pagination" aria-label="分页">
+  {% if page_obj.has_previous %}
+  <a href="{% query_with page=page_obj.previous_page_number %}" aria-label="上一页">{% icon 'chevron-left' %}</a>
+  {% else %}<span class="is-disabled">{% icon 'chevron-left' %}</span>{% endif %}
+  {% for number in page_obj.paginator.page_range %}
+    {% if number == page_obj.number %}<span class="is-current">{{ number }}</span>
+    {% elif number == 1 or number == page_obj.paginator.num_pages or number > page_obj.number|add:'-3' and number < page_obj.number|add:'3' %}<a href="{% query_with page=number %}">{{ number }}</a>
+    {% elif number == page_obj.number|add:'-3' or number == page_obj.number|add:'3' %}<span class="is-disabled">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if page_obj.has_next %}
+  <a href="{% query_with page=page_obj.next_page_number %}" aria-label="下一页">{% icon 'chevron-right' %}</a>
+  {% else %}<span class="is-disabled">{% icon 'chevron-right' %}</span>{% endif %}
+</nav>
+{% endif %}

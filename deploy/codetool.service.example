@@ -1,0 +1,23 @@
+# systemd unit: /etc/systemd/system/codetool.service
+#
+# One worker only: the live rooms are kept in the memory of the process.
+#
+# The service may run as root; every user program is then switched to an
+# unprivileged uid of its own and loses network access (see the README).
+# If you run it as an ordinary user instead, programs run as that user.
+
+[Unit]
+Description=CodeEditor (Django + Channels)
+After=network.target
+
+[Service]
+WorkingDirectory=/srv/codetool
+EnvironmentFile=-/srv/codetool/.env
+ExecStart=/usr/bin/python3 -m gunicorn codetool.asgi:application \
+    -k uvicorn.workers.UvicornWorker -w 1 \
+    --bind unix:/srv/codetool/gunicorn.sock --timeout 120
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

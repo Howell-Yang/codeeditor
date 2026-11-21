@@ -1,0 +1,93 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}会员 - {{ SITE.name }}{% endblock %}
+
+{% block content %}
+<div class="container page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">会员</h1>
+      <p class="page-sub">面试房间、在线运行和题库都是免费的。会员多出来的是「长期保存房间」。</p>
+    </div>
+  </div>
+
+  {% if user.is_authenticated %}
+  <div class="notice notice-ok">{% icon 'crown' %}
+    <div>当前账号 <strong>{{ user.get_username }}</strong>：{% if membership %}{{ membership.get_status }}{% if membership.has_time_plan and membership.remaining_rooms > 0 %}，另有 {{ membership.remaining_rooms }} 次房间额度{% endif %}{% else %}还没有会员{% endif %}。</div>
+  </div>
+  {% endif %}
+
+  <div class="plans">
+    <div class="card plan">
+      <div class="plan-name">免费使用</div>
+      <div class="plan-price">¥0</div>
+      <div class="plan-note">不需要注册</div>
+      <ul>
+        <li>{% icon 'check' %}<span>面试房间，多人实时协同编辑</span></li>
+        <li>{% icon 'check' %}<span>在线运行代码，题库和自动判题</span></li>
+        <li>{% icon 'check' %}<span>房间内容自动保存，闲置 {{ retention_days }} 天后可能被清理</span></li>
+        <li>{% icon 'check' %}<span>注册即送 {{ signup_bonus_days }} 天会员和 5 次房间额度</span></li>
+      </ul>
+      <a class="btn btn-outline btn-block" href="{% url 'new_room' %}">创建面试房间</a>
+    </div>
+
+    <div class="card plan">
+      <div class="plan-name">按次购买</div>
+      <div class="plan-price">¥0.1<small> / 个房间</small></div>
+      <div class="plan-note">用多少买多少，额度不过期</div>
+      <ul>
+        <li>{% icon 'check' %}<span>免费版的全部功能</span></li>
+        <li>{% icon 'check' %}<span>在房间里点图钉，长期保存该房间（每个房间消耗 1 次额度）</span></li>
+        <li>{% icon 'check' %}<span>保存过的房间不会被清理，可在个人资料页找到</span></li>
+      </ul>
+      <div class="plan-buy">
+        <select class="select" id="count-quantity" aria-label="购买数量">
+          {% for quantity, price in count_packages %}<option value="{{ quantity }}">{{ quantity }} 个房间 · ¥{{ price }}</option>{% endfor %}
+        </select>
+        <button type="button" class="btn btn-primary" data-buy="count">购买</button>
+      </div>
+    </div>
+
+    <div class="card plan is-featured">
+      <div class="plan-name">包年会员</div>
+      <div class="plan-price">¥4.99<small> / 年</small></div>
+      <div class="plan-note">有效期内不限次数</div>
+      <ul>
+        <li>{% icon 'check' %}<span>免费版的全部功能</span></li>
+        <li>{% icon 'check' %}<span>长期保存房间不限数量、不消耗额度</span></li>
+        <li>{% icon 'check' %}<span>续费时在现有到期日上顺延</span></li>
+      </ul>
+      <div class="plan-buy">
+        <select class="select" id="yearly-duration" aria-label="购买年限">
+          {% for years, price in yearly_packages %}<option value="{{ years }}">{{ years }} 年 · ¥{{ price }}</option>{% endfor %}
+        </select>
+        <button type="button" class="btn btn-primary" data-buy="yearly">购买</button>
+      </div>
+    </div>
+  </div>
+
+  {% if not SITE.payment_enabled %}
+  <div class="notice" style="margin-top:18px">{% icon 'info' %}<div>这个站点还没有开通在线支付，暂时无法购买。</div></div>
+  {% endif %}
+</div>
+
+<div class="modal" id="pay-modal" hidden>
+  <div class="modal-card modal-narrow" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+    <button type="button" class="icon-btn modal-close" data-close aria-label="关闭">{% icon 'x' %}</button>
+    <h2 id="pay-title" class="modal-title">支付宝扫码支付</h2>
+    <div class="qr-box">
+      <div class="qr-amount" id="pay-amount"></div>
+      <img id="pay-qr" alt="支付宝收款码">
+      <p class="form-note">请用支付宝扫码并支付上面的金额。支付完成后这里会自动确认，通常需要几秒到一分钟。</p>
+      <p id="pay-status" class="chip chip-wait"><span class="spinner"></span> 等待支付…</p>
+    </div>
+  </div>
+</div>
+
+{{ payment_ttl|json_script:"payment-ttl" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% asset 'js/membership.js' %}"></script>
+{% endblock %}

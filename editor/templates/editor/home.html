@@ -1,0 +1,139 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block body_class %}site-page home-page{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container hero-inner">
+    <div class="hero-copy">
+      <p class="eyebrow">免费 · 无需注册 · 打开即用</p>
+      <h1>一个链接，<br>开始一场代码面试</h1>
+      <p class="hero-lead">
+        面试官和候选人在同一个编辑器里实时写代码，能看到彼此的光标，
+        点一下就在服务器上运行。题目、输入输出、计时器都在同一个页面里。
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="{% url 'new_room' %}">{% icon 'plus' %}<span>创建面试房间</span></a>
+        <a class="btn btn-outline btn-lg" href="{% url 'problem_list' %}">{% icon 'book' %}<span>浏览题库</span></a>
+      </div>
+      <form class="join-form" data-join-form>
+        <label for="join-room">已有房间？</label>
+        <input class="input" id="join-room" name="room" placeholder="输入房间号或粘贴链接" autocomplete="off">
+        <button class="btn btn-ghost" type="submit">进入</button>
+      </form>
+      <ul class="hero-points">
+        {% for language in languages %}<li>{% icon 'check' %}{{ language.label }}</li>{% endfor %}
+      </ul>
+    </div>
+
+    {# A static picture of the room, drawn with HTML so that it follows the theme. #}
+    <div class="hero-shot" aria-hidden="true">
+      <div class="shot">
+        <div class="shot-bar">
+          <span class="shot-dot"></span><span class="shot-dot"></span><span class="shot-dot"></span>
+          <span class="shot-title">房间 k7m2xq9d</span>
+          <span class="shot-timer">{% icon 'clock' %} 12:45</span>
+          <span class="shot-peers"><i style="background:#2f81f7">面</i><i style="background:#3fb950">候</i></span>
+        </div>
+        <div class="shot-body">
+          <div class="shot-problem">
+            <b>两数之和</b>
+            <p>给定一个整数数组和一个目标值，找出和为目标值的两个数的下标。</p>
+            <span class="shot-tag">数组</span><span class="shot-tag">哈希表</span>
+          </div>
+          <div class="shot-code">
+<pre><span class="k">def</span> <span class="f">two_sum</span>(nums, target):
+    seen = {}
+    <span class="k">for</span> i, x <span class="k">in</span> <span class="b">enumerate</span>(nums):<span class="shot-caret" style="--c:#3fb950"><em>候选人</em></span>
+        <span class="k">if</span> target - x <span class="k">in</span> seen:
+            <span class="k">return</span> seen[target - x], i
+        seen[x] = i
+
+<span class="b">print</span>(two_sum([<span class="n">2</span>, <span class="n">7</span>, <span class="n">11</span>, <span class="n">15</span>], <span class="n">9</span>))<span class="shot-caret" style="--c:#2f81f7"><em>面试官</em></span></pre>
+            <div class="shot-output"><span class="shot-ok">运行成功</span><code>(0, 1)</code><span class="shot-meta">18 ms · 8.6 MB</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2 class="section-title">为面试这件事做的细节</h2>
+    <div class="feature-grid">
+      <article class="feature">
+        <span class="feature-icon">{% icon 'users' %}</span>
+        <h3>真正的实时协同</h3>
+        <p>两个人同时打字也不会互相覆盖，光标不会被对方的输入带着跑。能看到每个人的光标和选区。</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon">{% icon 'zap' %}</span>
+        <h3>一键运行</h3>
+        <p>代码在服务器上编译运行，结果同步给房间里的所有人，附带 CPU 时间和内存占用。支持标准输入。</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon">{% icon 'book' %}</span>
+        <h3>题库随手出题</h3>
+        <p>从题库里挑一道题直接发到房间，或者把自己常用的题目存进个人题库，下次面试一键调用。</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon">{% icon 'clock' %}</span>
+        <h3>共享计时器</h3>
+        <p>开始、暂停、清零对所有人同步，面试节奏一目了然。</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon">{% icon 'link' %}</span>
+        <h3>断线不丢内容</h3>
+        <p>网络抖动时继续输入，恢复后自动合并；房间内容自动保存，刷新或重新打开链接都还在。</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon">{% icon 'shield' %}</span>
+        <h3>受限的运行环境</h3>
+        <p>每次运行都有独立目录，限制 CPU、内存、输出和进程数，超时强制结束。</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+{% if sample_problems %}
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title">题库 · {{ problem_count }} 道题</h2>
+      <a class="link-more" href="{% url 'problem_list' %}">全部题目 {% icon 'chevron-right' %}</a>
+    </div>
+    <div class="problem-cards">
+      {% for problem in sample_problems %}
+      <a class="problem-card" href="{% url 'problem_detail' problem.slug %}">
+        <div class="problem-card-top">{% difficulty_badge problem.difficulty %}</div>
+        <h3>{{ problem.title }}</h3>
+        <p class="problem-card-tags">{% for tag in problem.tag_list|slice:":3" %}<span class="tag">{{ tag }}</span>{% endfor %}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section cta">
+  <div class="container cta-inner">
+    <h2>现在就试试</h2>
+    <p>不用注册，创建房间后把链接发给对方即可。</p>
+    <a class="btn btn-primary btn-lg" href="{% url 'new_room' %}">{% icon 'plus' %}<span>创建面试房间</span></a>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelector('[data-join-form]').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var value = this.elements.room.value.trim();
+    var match = value.match(/([A-Za-z0-9_-]{3,64})\/?$/);
+    if (!match) { CodeTool.toast('请输入房间号或房间链接', 'warn'); return; }
+    location.href = '/' + match[1] + '/';
+  });
+</script>
+{% endblock %}

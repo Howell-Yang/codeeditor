@@ -1,0 +1,101 @@
+{% extends 'editor/base.html' %}
+{% load ct %}
+
+{% block title %}题库 - {{ SITE.name }}{% endblock %}
+{% block description %}{{ SITE.name }} 题库：常见的算法与数据结构面试题，支持 Python、C、C++ 在线运行和自动判题。{% endblock %}
+
+{% block content %}
+<div class="container page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">题库</h1>
+      <p class="page-sub">在线写、在线跑、自动判题。面试官也可以把题目一键发到面试房间。</p>
+    </div>
+    <a class="btn btn-outline" href="{% url 'new_room' %}">{% icon 'plus' %}<span>创建面试房间</span></a>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="stat-value">{{ totals.all }}</div><div class="stat-label">全部题目</div></div>
+    <div class="stat"><div class="stat-value" style="color:var(--ok)">{{ totals.easy }}</div><div class="stat-label">简单</div></div>
+    <div class="stat"><div class="stat-value" style="color:var(--warn)">{{ totals.medium }}</div><div class="stat-label">中等</div></div>
+    <div class="stat"><div class="stat-value" style="color:var(--bad)">{{ totals.hard }}</div><div class="stat-label">困难</div></div>
+    {% if user.is_authenticated %}
+    <div class="stat"><div class="stat-value">{{ totals.solved }}</div><div class="stat-label">我已通过</div></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <form class="filters" method="get" action="{% url 'problem_list' %}">
+      <div class="input-icon">{% icon 'search' %}<input class="input" type="search" name="search" value="{{ filters.search }}" placeholder="搜索题目、描述或标签"></div>
+      <select class="select" name="difficulty" aria-label="难度" onchange="this.form.submit()">
+        <option value="">全部难度</option>
+        <option value="easy" {% if filters.difficulty == 'easy' %}selected{% endif %}>简单</option>
+        <option value="medium" {% if filters.difficulty == 'medium' %}selected{% endif %}>中等</option>
+        <option value="hard" {% if filters.difficulty == 'hard' %}selected{% endif %}>困难</option>
+      </select>
+      <select class="select" name="category" aria-label="分类" onchange="this.form.submit()">
+        <option value="">全部分类</option>
+        {% for category in categories %}
+        <option value="{{ category.id }}" {% if filters.category == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+      {% if user.is_authenticated %}
+      <select class="select" name="status" aria-label="状态" onchange="this.form.submit()">
+        <option value="">全部状态</option>
+        <option value="todo" {% if filters.status == 'todo' %}selected{% endif %}>还没做</option>
+        <option value="attempted" {% if filters.status == 'attempted' %}selected{% endif %}>尝试过</option>
+        <option value="solved" {% if filters.status == 'solved' %}selected{% endif %}>已通过</option>
+      </select>
+      {% endif %}
+      {% if filters.tag %}<input type="hidden" name="tag" value="{{ filters.tag }}">{% endif %}
+      <button class="btn btn-primary" type="submit">搜索</button>
+      {% if has_filters %}<a class="btn btn-ghost" href="{% url 'problem_list' %}">清除筛选</a>{% endif %}
+    </form>
+    {% if filters.tag %}
+    <div class="filters" style="padding-top:0"><span class="tag">标签：{{ filters.tag }}</span></div>
+    {% endif %}
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-tight">状态</th>
+            <th>题目</th>
+            <th class="col-tight">难度</th>
+            <th class="col-tight hide-sm">通过率</th>
+            <th class="col-tight hide-sm">分类</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for problem in page_obj.object_list %}
+          <tr>
+            <td class="col-tight">
+              {% if problem.user_status == 'solved' %}<span class="state-dot state-solved" title="已通过">{% icon 'check' %}</span>
+              {% elif problem.user_status == 'attempted' %}<span class="state-dot state-attempted" title="尝试过">{% icon 'minus' %}</span>
+              {% else %}<span class="state-dot state-none" title="还没做"></span>{% endif %}
+            </td>
+            <td>
+              <a class="problem-link" href="{% url 'problem_detail' problem.slug %}">{{ problem.title }}</a>
+              <span class="row-tags hide-sm">{% for tag in problem.tag_list|slice:":3" %}<a class="tag" href="{% url 'problem_list' %}?tag={{ tag|urlencode }}">{{ tag }}</a>{% endfor %}</span>
+            </td>
+            <td class="col-tight">{% difficulty_badge problem.difficulty %}</td>
+            <td class="col-tight num hide-sm">{% if problem.submission_count %}{{ problem.acceptance_rate|floatformat:0 }}%<span style="color:var(--muted)"> · {{ problem.accepted_count }}/{{ problem.submission_count }}</span>{% else %}—{% endif %}</td>
+            <td class="col-tight hide-sm" style="color:var(--muted)">{% if problem.category %}{{ problem.category.name }}{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5">
+            <div class="empty">
+              {% icon 'book' %}
+              {% if has_filters %}<p>没有符合条件的题目。</p><a class="btn btn-outline" href="{% url 'problem_list' %}">清除筛选</a>
+              {% else %}<p>题库还是空的。管理员可以运行 <code>python manage.py seed_problems</code> 导入内置题目，或在后台添加。</p>{% endif %}
+            </div>
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% include 'editor/_pagination.html' %}
+  </div>
+</div>
+{% endblock %}

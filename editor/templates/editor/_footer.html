@@ -1,0 +1,20 @@
+{% load ct %}
+<footer class="site-footer">
+  <div class="container site-footer-inner">
+    <div class="site-footer-brand">
+      <span class="brand-mark">{% icon 'logo' %}</span>
+      <span>{{ SITE.name }} · {{ SITE.tagline }}</span>
+    </div>
+    <nav class="site-footer-links">
+      <a href="{% url 'new_room' %}">创建面试房间</a>
+      <a href="{% url 'problem_list' %}">题库</a>
+      <a href="{% url 'membership' %}">会员</a>
+      {% if SITE.repo_url %}<a href="{{ SITE.repo_url }}" target="_blank" rel="noopener">源码</a>{% endif %}
+    </nav>
+    <div class="site-footer-legal">
+      <span>{{ SITE.copyright }}</span>
+      {% if SITE.icp_number %}<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">{{ SITE.icp_number }}</a>{% endif %}
+      {% if SITE.police_number %}<a href="https://beian.mps.gov.cn/#/query/webSearch{% if SITE.police_code %}?code={{ SITE.police_code }}{% endif %}" target="_blank" rel="noopener noreferrer"><img src="{% asset 'img/beian.png' %}" alt="" width="14" height="14">{{ SITE.police_number }}</a>{% endif %}
+    </div>
+  </div>
+</footer>
