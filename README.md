@@ -4,7 +4,7 @@
 
 线上地址：<https://codeeditor.cn>
 
-*An online coding-interview pad: real-time collaborative editor (operational transformation, remote cursors, own-edits-only undo), sandboxed execution of Python / C / C++ / JavaScript, a shared timer, and a problem bank with an automatic judge. Django 3.2 + Channels, no build step, runs on Python 3.6+.*
+*An online coding-interview pad: real-time collaborative editor (operational transformation, remote cursors, own-edits-only undo), sandboxed execution of Python / C / C++ / JavaScript, a shared timer, and a problem bank with an automatic judge. Django 3.2 + Channels, no build step, runs on Python 3.6 – 3.10.*
 
 ![面试房间](docs/screenshots/room-light.png)
 
@@ -74,7 +74,7 @@
 - 进入一个空的网络命名空间，程序无法联网；
 - 运行结束后杀掉这个 uid 名下残留的全部进程。
 
-**这是加固，不是容器。** 程序仍然可以读取主机上所有用户可读的文件，也没有磁盘配额。部署时请确认数据库和密钥文件对其他用户不可读（例如放在权限为 700 的目录里）；如果要对公网开放并且对隔离要求更高，建议把运行环节换成 nsjail / bubblewrap / Docker。可以随时用下面的命令查看当前主机上实际生效的保护：
+**这是加固，不是容器。** 程序仍然可以读取主机上所有用户可读的文件，也没有磁盘配额；运行结束后只清理它自己的工作目录，程序写到 `/tmp`、`/var/tmp`、`/dev/shm` 这类所有人可写的目录里的文件不会被自动删除。部署时请确认数据库和密钥文件对其他用户不可读（例如放在权限为 700 的目录里）；如果要对公网开放并且对隔离要求更高，建议把运行环节换成 nsjail / bubblewrap / Docker。可以随时用下面的命令查看当前主机上实际生效的保护：
 
 ```bash
 python manage.py sandbox_check
@@ -86,7 +86,7 @@ python manage.py sandbox_check
 
 ## 本地运行
 
-需要 Python 3.6 或更高版本。
+需要 Python 3.6 – 3.10（Django 3.2 支持的范围；线上跑的是 3.6）。
 
 ```bash
 pip install -r requirements.txt
@@ -163,7 +163,7 @@ deploy/                   nginx / systemd 示例
 ## 已知的限制
 
 - 单进程：房间状态不跨进程，暂不支持水平扩展（需要把房间状态搬到 Redis 之类的共享存储）。
-- 沙箱是加固而不是完整隔离，见上文。
+- 沙箱是加固而不是完整隔离，见上文（可读取公开可读的文件、没有磁盘配额、不清理公共临时目录）。
 - 会员购买用的是「扫固定金额收款码 + 轮询账户余额确认到账」的轻量方案，只适合小站点；流量大了应该换成带支付通知的接口（如支付宝当面付）。
 - 目前支持 Python、C、C++、JavaScript；Java / Go 还没有接入。
 
