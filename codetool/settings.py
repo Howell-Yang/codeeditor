@@ -290,6 +290,10 @@ SANDBOX = {
     'C_STD': env('SANDBOX_C_STD', 'gnu99'),
     'CXX_STD': env('SANDBOX_CXX_STD', 'c++11'),
 }
+if TESTING:
+    # A test run as root must not share uids with a server running on the same
+    # host: when a run is over, everything left under its uid is killed.
+    SANDBOX['UID_BASE'] += 200
 
 # Requests per window, written as "count/seconds".
 RATE_LIMITS = {

@@ -43,6 +43,8 @@ PROBES = [
     ('output flood', 'python', 'import sys\nwhile True:\n    sys.stdout.write("x" * 65536)'),
 ]
 
+CHECK_UID_OFFSET = 100
+
 
 class Command(BaseCommand):
     help = 'Show which protections the code sandbox has on this host and try them out.'
@@ -53,8 +55,15 @@ class Command(BaseCommand):
         write('Server user: uid %d%s' % (os.getuid(), ' (root)' if root else ''))
         if root:
             base = settings.SANDBOX['UID_BASE']
+            size = settings.SANDBOX['MAX_CONCURRENCY']
             write('  programs run as uids %d-%d, without network unless SANDBOX_NETWORK=1'
-                  % (base, base + settings.SANDBOX['MAX_CONCURRENCY'] - 1))
+                  % (base, base + size - 1))
+            # The probes below must not share a uid with a server that is running
+            # right now (everything left under a uid is killed after each run),
+            # so this command uses ids of its own.
+            settings.SANDBOX['UID_BASE'] = base + CHECK_UID_OFFSET
+            write('  (this check itself uses uids %d-%d, so it is safe while the server is running)'
+                  % (base + CHECK_UID_OFFSET, base + CHECK_UID_OFFSET + size - 1))
         else:
             write(self.style.WARNING(
                 '  not root: programs run as the server user, keep their network access and can\n'

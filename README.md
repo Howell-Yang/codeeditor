@@ -80,7 +80,9 @@
 python manage.py sandbox_check
 ```
 
-它会列出运行身份、可用的语言，并实际跑一遍死循环、内存炸弹、fork 炸弹、输出洪水、联网和读数据库这几个探针。
+它会列出运行身份、可用的语言，并实际跑一遍死循环、内存炸弹、fork 炸弹、输出洪水、联网和读数据库这几个探针，再用 16 MB 的内存上限把每种语言跑一遍。它用的是一组单独的 uid，服务正在运行时也可以执行。
+
+关于内存上限：非特权进程能设的只有「地址空间」上限，它限制的是映射了多少而不是用了多少。所以实际设置的值是「内存上限 + 64 MB 余量 + 解释器空载时占用的地址空间」，最后一项在服务器上实测得到（同样的 CPython，在有的发行版上空载是 25 MB，在 CentOS 7 上因为会映射 glibc 的 locale 归档而超过 120 MB）。是否超限则按进程实际的内存峰值来判定。
 
 可用的语言取决于服务器上装了什么：找得到 `python3` / `g++` / `gcc` / `node` 才会出现在语言列表里。
 
@@ -132,9 +134,9 @@ python manage.py test
 2. 更新代码。保留服务器上的 `db.sqlite3`、`configs/`（支付宝密钥）和 `editor/static/images/alipay_qir_*.png`（收款码），它们不在仓库里。
 3. 创建 `.env`：把原来写在 `settings.py` 里的 `SECRET_KEY` 放进 `DJANGO_SECRET_KEY`（这样已登录的用户不会掉线），并填上备案号等站点信息和 `ALIPAY_*`。
 4. `python manage.py migrate`，然后 `python manage.py seed_problems`。
-5. `python manage.py collectstatic --noinput`（如果 nginx 直接从 `staticfiles/` 提供 `/static/`，这一步必须做；否则做了也没有坏处）。
+5. `python manage.py collectstatic --noinput`（如果 nginx 直接从 `staticfiles/` 提供 `/static/`，这一步必须做；否则做了也没有坏处）。**不要清空原来的 `staticfiles/`**：旧版本给页面设置了一周的浏览器缓存，升级后的一周内老访客可能先看到缓存的旧页面，它还需要旧的 CSS / JS 才能正常显示。
 6. `python manage.py sandbox_check`，确认运行身份、断网和各语言都符合预期。
-7. 重启服务（单 worker）。升级前打开着的旧页面会收到「请刷新」的提示。
+7. 重启服务（单 worker）。升级前打开着的、或者被浏览器缓存的旧页面会收到「请刷新」的提示，刷新后就是新版本，房间内容不变。
 
 ## 目录结构
 
