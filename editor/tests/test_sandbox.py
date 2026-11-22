@@ -1,8 +1,12 @@
+import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import unittest
+from unittest import mock
 
 from django.conf import settings
 from django.test import SimpleTestCase
@@ -79,6 +83,14 @@ class RunTests(SimpleTestCase):
     def test_memory_limit(self):
         result = run('python', 'x = bytearray(2 * 1024 * 1024 * 1024)\nprint(len(x))', memory_mb=64)
         self.assertEqual(result['status'], 'memory_limit')
+
+    def test_small_memory_limit_still_lets_the_program_start(self):
+        # The limit has to bind the program, not the start-up of its runtime:
+        # where an idle CPython maps more than 100 MB (CentOS 7), a limit below
+        # that used to end in SIGSEGV before the first line ran.
+        result = run('python', 'print(6 * 7)', memory_mb=16)
+        self.assertEqual(result['status'], 'ok', result)
+        self.assertEqual(result['stdout'].strip(), '42')
 
     def test_memory_within_limit_is_measured(self):
         result = run('python', 'x = bytearray(60 * 1024 * 1024)\nprint(len(x))', memory_mb=128)
@@ -275,3 +287,87 @@ class LauncherTests(SimpleTestCase):
         self.assertNotIn('import django', source)
         self.assertNotIn('from django', source)
         self.assertNotIn('from .', source)
+
+    def launch(self, argv, limits):
+        """Run ``argv`` through the launcher; returns (completed process, report)."""
+        directory = tempfile.mkdtemp(prefix='launcher-test-')
+        try:
+            report = os.path.join(directory, 'report.json')
+            config = {
+                'argv': argv, 'cwd': directory, 'env': {'PATH': '/usr/bin:/bin'},
+                # As root the launcher refuses to keep its uid.
+                'uid': settings.SANDBOX['UID_BASE'] if os.geteuid() == 0 else None,
+                'gid': settings.SANDBOX['UID_BASE'] if os.geteuid() == 0 else None,
+                'limits': limits, 'report': report,
+            }
+            completed = self.call('run', json.dumps(config))
+            try:
+                with open(report) as handle:
+                    return completed, json.load(handle)
+            except (IOError, OSError, ValueError):
+                return completed, None
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_address_space_limit_reaches_the_program(self):
+        completed, report = self.launch(
+            [sys.executable, '-I', '-S', '-c',
+             'import resource; print(resource.getrlimit(resource.RLIMIT_AS)[0])'],
+            {'address_space_bytes': 1024 * 1024 * 1024})
+        self.assertEqual((report or {}).get('exit_code'), 0, (report, completed.stderr))
+        self.assertEqual(completed.stdout.strip(), str(1024 * 1024 * 1024))
+
+    @unittest.skipUnless(shutil.which('true'), 'no "true" binary')
+    def test_address_space_limit_below_the_launcher_itself(self):
+        # Less address space than the launcher's own interpreter occupies: the
+        # program must still start (the limit is raised to what the launcher
+        # needs to reach exec) instead of the launcher dying on the way.
+        completed, report = self.launch([shutil.which('true')], {'address_space_bytes': 1024 * 1024})
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual((report or {}).get('exit_code'), 0, report)
+        self.assertIsNone((report or {}).get('signal'), report)
+
+
+class FootprintTests(SimpleTestCase):
+    """How much address space the bare runtime needs is measured, not assumed."""
+
+    def setUp(self):
+        runner.reset_caches()
+        self.addCleanup(runner.reset_caches)
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'needs /proc')
+    def test_python_is_measured_once(self):
+        python = sandbox.get_language('python')
+        footprint = runner.runtime_footprint_kb(python)
+        self.assertGreater(footprint, 1024)
+        self.assertLessEqual(footprint, runner.MAX_RUNTIME_FOOTPRINT_KB)
+        with mock.patch.object(runner.subprocess, 'run', side_effect=AssertionError('measured twice')):
+            self.assertEqual(runner.runtime_footprint_kb(python), footprint)
+
+    def test_compiled_languages_get_no_allowance(self):
+        for key in ('c', 'cpp'):
+            self.assertEqual(runner.runtime_footprint_kb(sandbox.get_language(key)), 0)
+
+    def test_failed_or_absurd_measurement_means_no_allowance(self):
+        python = sandbox.get_language('python')
+        with mock.patch.object(runner.subprocess, 'run', side_effect=OSError('no such file')):
+            self.assertEqual(runner.runtime_footprint_kb(python), 0)
+        for output in ('', 'garbage\n', '-5\n', '%d\n' % (runner.MAX_RUNTIME_FOOTPRINT_KB + 1)):
+            runner.reset_caches()
+            fake = mock.Mock(returncode=0, stdout=output)
+            with mock.patch.object(runner.subprocess, 'run', return_value=fake):
+                self.assertEqual(runner.runtime_footprint_kb(python), 0, repr(output))
+
+    def test_the_allowance_is_added_to_the_address_space_limit(self):
+        seen = {}
+
+        def fake_execute(self, command, **arguments):
+            seen.update(arguments['limits'])
+            return runner.RunResult()
+
+        with mock.patch.object(runner, 'runtime_footprint_kb', return_value=100 * 1024), \
+                mock.patch.object(runner.Session, '_execute', fake_execute):
+            with runner.Session('python', 'pass') as session:
+                session.run('', sandbox.Limits(memory_mb=32))
+        self.assertEqual(seen['address_space_bytes'],
+                         (32 + runner.ADDRESS_SPACE_SLACK_MB + 100) * 1024 * 1024)

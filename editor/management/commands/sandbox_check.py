@@ -64,7 +64,12 @@ class Command(BaseCommand):
         for language in sandbox.LANGUAGES:
             binary = sandbox.find_binary(language)
             if binary:
-                write('  %-11s %s (%s)' % (language.name, binary, sandbox.language_version(language) or '?'))
+                line = '  %-11s %s (%s)' % (language.name, binary, sandbox.language_version(language) or '?')
+                footprint = runner.runtime_footprint_kb(language, binary)
+                if footprint:
+                    line += '; the idle runtime maps %d MB, added to the address space limit' % (
+                        footprint // 1024)
+                write(line)
             else:
                 write(self.style.WARNING('  %-11s not installed' % language.name))
         write('')
@@ -81,3 +86,10 @@ class Command(BaseCommand):
             result = sandbox.run_code(language.key, language.template, '')
             write('  hello world in %-11s %-14s %s' % (
                 language.name, result['status'], (result['stdout'] or result['message']).strip()[:60]))
+        # A small limit must still let a program start: it has to bind the
+        # program, not the start-up of its runtime.
+        for language in sandbox.available_languages():
+            result = sandbox.run_code(language.key, language.template, '', sandbox.Limits(memory_mb=16))
+            line = '  16 MB limit, %-13s %-14s %s' % (
+                language.name, result['status'], (result['stdout'] or result['message']).strip()[:60])
+            write(line if result['status'] == sandbox.STATUS_OK else self.style.ERROR(line))

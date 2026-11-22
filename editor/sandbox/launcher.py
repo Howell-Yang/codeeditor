@@ -32,6 +32,10 @@ PR_SET_NO_NEW_PRIVS = 38
 
 MIN_SANDBOX_UID = 1000  # never switch to (or reap) a system account
 
+# Room this interpreter keeps for itself between applying the address space
+# limit and exec (see _limit_address_space).
+SETUP_HEADROOM = 16 * 1024 * 1024
+
 
 def _fail(message):
     try:
@@ -79,8 +83,8 @@ def _set_limits(limits):
     if cpu:
         # Soft limit -> SIGXCPU, hard limit one second later -> SIGKILL.
         apply('RLIMIT_CPU', int(cpu), int(cpu) + 1)
+    # The address space limit is not in this list: see _limit_address_space.
     for key, name in (
-            ('address_space_bytes', 'RLIMIT_AS'),
             ('stack_bytes', 'RLIMIT_STACK'),
             ('file_size_bytes', 'RLIMIT_FSIZE'),
             ('open_files', 'RLIMIT_NOFILE'),
@@ -90,18 +94,57 @@ def _set_limits(limits):
             apply(name, int(value))
 
 
+def _virtual_size():
+    """Bytes of address space this process occupies right now (0 if unknown)."""
+    try:
+        with open('/proc/self/statm') as handle:
+            pages = int(handle.read().split()[0])
+        return pages * os.sysconf('SC_PAGE_SIZE')
+    except (IOError, OSError, ValueError, IndexError):
+        return 0
+
+
+def _limit_address_space(requested):
+    """Apply RLIMIT_AS for the program that is about to be started.
+
+    The limit is in force the moment it is set, so it also binds this
+    interpreter for the few steps that are left before exec. An interpreter
+    that may not grow any more cannot even extend its stack and dies with
+    SIGSEGV before the program starts, and how much address space an idle
+    interpreter occupies depends on the host (CPython on CentOS 7 maps the
+    100 MB glibc locale archive). Therefore this is the very last step, and
+    the limit is never set below what this process already uses plus a little
+    room to finish. exec gives the program a fresh address space under the
+    same limit.
+    """
+    if not requested:
+        return
+    import resource
+    limit = int(requested)
+    used = _virtual_size()
+    if used:
+        limit = max(limit, used + SETUP_HEADROOM)
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+    except (ValueError, OSError):
+        # Above the hard limit we inherited: the stricter one stays.
+        pass
+
+
 def _become_target(config, is_root):
     """Runs in the forked child; never returns."""
     argv = config['argv']
     uid = config.get('uid')
     gid = config.get('gid')
+    limits = config.get('limits') or {}
+    environment = config.get('env') or {}
     try:
         os.umask(0o077)
         os.chdir(config['cwd'])
     except OSError as exc:
         _fail('cannot enter the working directory: %s' % exc)
     try:
-        _set_limits(config.get('limits') or {})
+        _set_limits(limits)
     except Exception as exc:
         _fail('cannot apply resource limits: %s' % exc)
     if is_root:
@@ -122,7 +165,11 @@ def _become_target(config, is_root):
         if number is not None:
             signal.signal(number, signal.SIG_DFL)
     try:
-        os.execvpe(argv[0], argv, config.get('env') or {})
+        _limit_address_space(limits.get('address_space_bytes'))
+    except Exception as exc:
+        _fail('cannot apply the address space limit: %s' % exc)
+    try:
+        os.execvpe(argv[0], argv, environment)
     except OSError as exc:
         _fail('cannot start %s: %s' % (argv[0], exc))
 

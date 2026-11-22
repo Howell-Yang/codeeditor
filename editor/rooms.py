@@ -307,15 +307,25 @@ class RoomManager(object):
                 try:
                     await database_sync_to_async(self._write_row)(room.name, fields)
                     room.exists_in_db = True
+                except asyncio.CancelledError:
+                    # Whoever awaited this save went away. (Before Python 3.8
+                    # this is an ``Exception`` as well, hence the explicit
+                    # clause.) The write may still finish in its thread; keep
+                    # the room dirty so that it is certainly saved again.
+                    room.dirty = True
+                    raise
                 except Exception:
                     logger.exception('saving room %s failed', room.name)
                     room.dirty = True
                     break
         finally:
             room.saving = False
-        if room.dirty and room.save_handle is None:
-            # The save failed: try again a little later.
-            room.save_handle = self.loop.call_later(5.0, self._start_save, room)
+            if room.dirty and room.save_handle is None:
+                # The save failed or was interrupted: try again a little later.
+                try:
+                    room.save_handle = self.loop.call_later(5.0, self._start_save, room)
+                except RuntimeError:
+                    pass    # the event loop is shutting down
 
     @staticmethod
     def _write_row(name, fields):

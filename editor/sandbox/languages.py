@@ -94,6 +94,11 @@ class Language(object):
     def run_command(self, binary, memory_mb):
         raise NotImplementedError
 
+    def footprint_command(self, binary):
+        """Command that prints how many kB of address space the idle runtime
+        occupies, or None when the language has no runtime worth measuring."""
+        return None
+
     @property
     def template(self):
         return TEMPLATES.get(self.key, '')
@@ -103,6 +108,14 @@ class PythonLanguage(Language):
     def run_command(self, binary, memory_mb):
         # -B: no .pyc files, -s: ignore the user site directory.
         return [binary, '-B', '-s', self.source_name]
+
+    def footprint_command(self, binary):
+        # -I keeps the current directory out of sys.path: this runs as the
+        # server user. The snippet deliberately imports nothing.
+        return [binary, '-I', '-B', '-c',
+                "for line in open('/proc/self/status'):\n"
+                "    if line.startswith('VmPeak:'):\n"
+                "        print(line.split()[1])\n"]
 
 
 class CLanguage(Language):

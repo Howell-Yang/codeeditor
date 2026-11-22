@@ -55,6 +55,16 @@ FILE_SIZE_LIMIT = 16 * 1024 * 1024
 COMPILE_ADDRESS_SPACE = 2048 * 1024 * 1024
 COMPILE_FILE_SIZE_LIMIT = 128 * 1024 * 1024
 
+# RLIMIT_AS counts virtual memory. On top of the advertised memory limit a
+# program gets this much slack (allocator overhead, shared libraries) plus
+# whatever its bare runtime occupies on this host (runtime_footprint_kb).
+ADDRESS_SPACE_SLACK_MB = 64
+MAX_RUNTIME_FOOTPRINT_KB = 1024 * 1024
+
+# The launcher itself runs in the plain C locale: with any other locale an
+# interpreter may map the whole glibc locale archive (100 MB on CentOS 7).
+LAUNCHER_ENVIRONMENT = {'PATH': '/usr/bin:/bin', 'LANG': 'C', 'LC_ALL': 'C'}
+
 _OUT_OF_MEMORY_HINTS = (
     'MemoryError',
     'std::bad_alloc',
@@ -194,6 +204,56 @@ def _base_environment(workdir, extra_path_entries=()):
     }
 
 
+_footprint_lock = threading.Lock()
+_footprint_cache = {}
+
+
+def runtime_footprint_kb(language, binary=None):
+    """Address space (kB) the idle runtime of ``language`` occupies on this host.
+
+    The address space limit is the only memory limit an unprivileged process
+    can be given, and it counts mappings, not memory in use. How much an
+    interpreter maps just to start differs by a factor of five between hosts
+    (the same CPython: 25 MB on one distribution, 128 MB on CentOS 7, where it
+    maps the glibc locale archive). Measuring it once and adding it to the
+    limit lets a program use its advertised memory everywhere, instead of
+    failing to start under a small limit. 0 for compiled languages and
+    whenever the measurement is not possible.
+    """
+    binary = binary or find_binary(language)
+    if not binary:
+        return 0
+    with _footprint_lock:
+        if binary in _footprint_cache:
+            return _footprint_cache[binary]
+    footprint = 0
+    command = language.footprint_command(binary)
+    if command:
+        try:
+            completed = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                # The same environment as a real run: the locale is what decides
+                # how much gets mapped. "/" keeps a writable directory out of it.
+                env=_base_environment('/', [os.path.dirname(binary)]), cwd='/',
+                universal_newlines=True, timeout=10,
+            )
+            if completed.returncode == 0:
+                footprint = int((completed.stdout or '').strip() or 0)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            footprint = 0
+        if not 0 < footprint <= MAX_RUNTIME_FOOTPRINT_KB:
+            footprint = 0
+    with _footprint_lock:
+        _footprint_cache[binary] = footprint
+    return footprint
+
+
+def reset_caches():
+    with _footprint_lock:
+        _footprint_cache.clear()
+
+
 def _read_capped(path, limit):
     """(text, truncated) with at most ``limit`` bytes read from ``path``."""
     try:
@@ -321,7 +381,7 @@ class Session(object):
             subprocess.run(
                 [sys.executable, '-I', '-S', LAUNCHER, 'reap', str(self.uid)],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=15, env={'PATH': '/usr/bin:/bin', 'LANG': 'C'},
+                timeout=15, env=dict(LAUNCHER_ENVIRONMENT),
             )
         except (OSError, subprocess.SubprocessError) as exc:
             logger.warning('sandbox reap failed for uid %s: %s', self.uid, exc)
@@ -378,8 +438,9 @@ class Session(object):
             'open_files': 64,
         }
         if self.language.limit_address_space:
-            # Some head-room on top of the advertised limit for the runtime itself.
-            rlimits['address_space_bytes'] = (limits.memory_mb + 64) * 1024 * 1024
+            rlimits['address_space_bytes'] = (
+                (limits.memory_mb + ADDRESS_SPACE_SLACK_MB) * 1024 * 1024
+                + runtime_footprint_kb(self.language, self.binary) * 1024)
         return self._execute(
             command,
             stdin_text=stdin_text,
@@ -423,7 +484,7 @@ class Session(object):
                     launcher_command,
                     stdin=stdin_file, stdout=stdout_file, stderr=stderr_file,
                     close_fds=True, start_new_session=True,
-                    env={'PATH': '/usr/bin:/bin', 'LANG': 'C'},
+                    env=dict(LAUNCHER_ENVIRONMENT),
                 )
         except OSError as exc:
             raise SandboxError('cannot start the sandbox launcher: %s' % exc)

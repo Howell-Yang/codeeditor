@@ -9,7 +9,7 @@ import logging
 import threading
 import time
 
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 from django.db.models import F
 from django.db.utils import OperationalError
 from django.utils import timezone
@@ -215,21 +215,30 @@ def _internal_error(message='判题时出现内部错误'):
 
 
 def _store_outcome(submission_id, problem_id, outcome):
-    _with_retry(lambda: Submission.objects.filter(pk=submission_id).update(
-        status=outcome['status'],
-        score=outcome['score'],
-        total_score=outcome['total_score'],
-        execution_time=outcome['execution_time'],
-        memory_used=outcome['memory_used'],
-        error_message=outcome['error_message'],
-        test_results=json.dumps(outcome['test_results'], ensure_ascii=False),
-        judged_at=timezone.now(),
-    ))
-    if outcome['status'] != 'system_error':
-        counters = {'submission_count': F('submission_count') + 1}
-        if outcome['status'] == 'accepted':
-            counters['accepted_count'] = F('accepted_count') + 1
-        _with_retry(lambda: Problem.objects.filter(pk=problem_id).update(**counters))
+    """Store the verdict together with the problem's counters.
+
+    One transaction: whoever sees the final status (the page polls for it)
+    also sees the counters that go with it.
+    """
+    def write():
+        with transaction.atomic():
+            Submission.objects.filter(pk=submission_id).update(
+                status=outcome['status'],
+                score=outcome['score'],
+                total_score=outcome['total_score'],
+                execution_time=outcome['execution_time'],
+                memory_used=outcome['memory_used'],
+                error_message=outcome['error_message'],
+                test_results=json.dumps(outcome['test_results'], ensure_ascii=False),
+                judged_at=timezone.now(),
+            )
+            if outcome['status'] != 'system_error':
+                counters = {'submission_count': F('submission_count') + 1}
+                if outcome['status'] == 'accepted':
+                    counters['accepted_count'] = F('accepted_count') + 1
+                Problem.objects.filter(pk=problem_id).update(**counters)
+
+    _with_retry(write)
 
 
 def judge_submission(submission_id):
