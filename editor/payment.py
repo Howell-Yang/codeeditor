@@ -64,7 +64,9 @@ class AlipayBalanceQuery(object):
         config.app_id = settings.ALIPAY['APP_ID']
         config.app_private_key = _read_key(settings.ALIPAY['PRIVATE_KEY_FILE'])
         config.alipay_public_key = _read_key(settings.ALIPAY['PUBLIC_KEY_FILE'])
-        self.client = DefaultAlipayClient(alipay_client_config=config, logger=logger)
+        # No logger for the SDK: it would write every signed request URL
+        # (application id and signature included) to the service log.
+        self.client = DefaultAlipayClient(alipay_client_config=config)
         self.request = AlipayDataBillBalanceQueryRequest(AlipayFundTransAuctionBalanceQueryModel())
 
     def query_balance(self):
